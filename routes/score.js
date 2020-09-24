@@ -1,6 +1,6 @@
 const express = require("express");
-const User = require("../controller/user");
+const Score = require("../controller/score");
 const router = express.Router();
 
-router.get("/getRateList", User.getRateList);
+router.post("/update", Score.updateScore);
 module.exports = router;

@@ -1,22 +1,20 @@
 const lineReader = require("line-reader");
 const dbConnect = require("../../mongodb");
 dbConnect(require("../../config").dbUrl);
-const UserModel = require("../../models/users");
+const UserModel = require("../../models/user");
 
 let index = 0;
+let username, realname;
 lineReader.eachLine("users.csv", async (line) => {
-  let username = line.split(",")[2];
-  let realname = line.split(",")[1];
+  username = line.split(",")[2];
+  realname = line.split(",")[1];
 
   const user = new UserModel({
     username,
     realname,
-    score: {
-      group: [],
-      committee: [],
-      seedClass: {},
-    },
   });
-  await user.save();
+  await user.save((err) => {
+    err && console.log(err);
+  });
   console.log(`${++index}:${username} ${realname}`);
 });
