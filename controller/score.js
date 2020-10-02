@@ -2,7 +2,9 @@ const ScoreModel = require("../models/score");
 const UserModel = require("../models/user");
 module.exports = {
   async updateScore(req, res, next) {
-    const { from, to, part, partName, scores } = req.body;
+    const { username, part, partName, scores } = req.body;
+    const from = req.session.username;
+    const to = username;
     const fromUser = await UserModel.findOne({ username: from });
     const toUser = await UserModel.findOne({ username: to });
     if (!fromUser || !toUser) {
@@ -37,7 +39,7 @@ module.exports = {
               msg: "数据库错误",
             });
           } else {
-            res.send({ msg: "success" });
+            res.send({ code: 0, msg: "success" });
           }
         });
       } else {

@@ -2,13 +2,29 @@ const UserModel = require("../models/user");
 const ScoreModel = require("../models/score");
 const { requestyxAuth } = require("../utils/request");
 module.exports = {
+  //登出
+  async logout(req, res, next) {
+    req.session.destroy(function (err) {
+      if (err) {
+        next({
+          status: 500,
+          msg: "操作失败",
+        });
+      } else {
+        res.send({
+          code: 0,
+          msg: "success",
+        });
+      }
+    });
+  },
   //登陆
   async login(req, res, next) {
     const { username, password } = req.body;
     const user = await UserModel.findOne({ username });
     if (!user) {
-      next({
-        status: 400,
+      res.send({
+        code: 1001,
         msg: "用户不存在",
       });
       return;
@@ -17,13 +33,14 @@ module.exports = {
       .then((authRes) => {
         if (authRes.statusCode === 200) {
           req.session.username = username; //存储session
-          res.send({ msg: "success" });
+          res.send({ code: 0, msg: "success" });
         } else {
-          res.send({ msg: "密码错误" });
+          res.send({ code: 1002, msg: "密码错误" });
         }
       })
       .catch((err) => {
-        res.send({ msg: "登陆验证失败，请稍后再试" });
+        console.log("Login Error", err);
+        res.send({ code: 1003, msg: "登陆验证失败，请稍后再试" });
       });
   },
   //获取项目组、队委会、种子班信息
@@ -36,8 +53,8 @@ module.exports = {
     const { username, group, committee, seedClass } = req.body;
     const user = await UserModel.findOne({ username });
     if (!user) {
-      next({
-        status: 400,
+      res.send({
+        code: 1001,
         msg: "用户不存在",
       });
       return;
@@ -58,10 +75,10 @@ module.exports = {
   },
   //获取个人信息
   async getProfile(req, res, next) {
-    const user = await UserModel.findOne({ username: req.query.username });
+    const user = await UserModel.findOne({ username: req.session.username });
     if (!user) {
-      next({
-        status: 400,
+      res.send({
+        code: 1001,
         msg: "用户不存在",
       });
       return;
@@ -72,10 +89,10 @@ module.exports = {
   //获取需要评价的队员列表
   async getRateList(req, res, next) {
     const allUsers = await UserModel.find();
-    const user = await UserModel.findOne({ username: req.query.username });
+    const user = await UserModel.findOne({ username: req.session.username });
     if (!user) {
-      next({
-        status: 400,
+      res.send({
+        code: 1001,
         msg: "用户不存在",
       });
       return;
