@@ -52,13 +52,6 @@ module.exports = {
   async updateProfile(req, res, next) {
     const { username, group, committee, seedClass } = req.body;
     const user = await UserModel.findOne({ username });
-    if (!user) {
-      res.send({
-        code: 1001,
-        msg: "用户不存在",
-      });
-      return;
-    }
     user.group = group;
     user.committee = committee;
     user.seedClass = seedClass;
@@ -76,13 +69,6 @@ module.exports = {
   //获取个人信息
   async getProfile(req, res, next) {
     const user = await UserModel.findOne({ username: req.session.username });
-    if (!user) {
-      res.send({
-        code: 1001,
-        msg: "用户不存在",
-      });
-      return;
-    }
     const { username, realname, group, committee, seedClass } = user;
     res.send({ username, realname, group, committee, seedClass });
   },
@@ -90,13 +76,6 @@ module.exports = {
   async getRateList(req, res, next) {
     const allUsers = await UserModel.find();
     const user = await UserModel.findOne({ username: req.session.username });
-    if (!user) {
-      res.send({
-        code: 1001,
-        msg: "用户不存在",
-      });
-      return;
-    }
     const allScores = await ScoreModel.find({ from: user.username });
     const rateList = {
       group: {},
