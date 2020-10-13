@@ -4,7 +4,11 @@ const UserSchema = new Schema(
   {
     username: { type: String, unique: true, required: true },
     realname: { type: String, required: true },
-    identity: { type: Number }, //身份：导师、队长、项目组组长、队委会部长、组员等
+    identity: { type: Number },
+    //1. 导师
+    //2. 队长
+    //3. 其他
+
     //项目组
     group: {
       type: [String],
@@ -19,6 +23,7 @@ const UserSchema = new Schema(
   { usePushEach: true }
 );
 //添加获取部门信息的静态方法
+//可以改为从part表中获取
 let partInfo = null;
 UserSchema.statics.getPartInfo = async function () {
   if (partInfo) return partInfo; //因为第一次录入后就不会改变，所以只需要创建一次
@@ -43,6 +48,26 @@ UserSchema.statics.getPartInfo = async function () {
     seedClass: Array.from(seedClass),
   };
   return partInfo;
+};
+
+//获取导师列表
+let tutorList = [];
+UserSchema.statics.getTutorList = async function () {
+  if (tutorList.length > 0) return tutorList;
+  //...
+  tutorList.push("dian");
+  return tutorList;
+};
+//获取队长信息
+let captain = null;
+UserSchema.statics.getCaptain = async function () {
+  if (captain) return captain;
+  //...
+  captain = {
+    username: "ZhiXiaoYu",
+    realname: "彭宇",
+  };
+  return captain;
 };
 
 const UserModel = mongoose.model("user", UserSchema);

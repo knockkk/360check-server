@@ -1,7 +1,6 @@
 const express = require("express");
 const User = require("../controller/user");
 const Check = require("../middleware/check");
-const UserModel = require("../models/user");
 const router = express.Router();
 
 router.get("/rateList", Check, User.getRateList);

@@ -31,12 +31,14 @@ module.exports = {
     }
     requestyxAuth(username, password)
       .then((authRes) => {
-        if (authRes.statusCode === 200) {
-          req.session.username = username; //存储session
-          res.send({ code: 0, msg: "success" });
-        } else {
-          res.send({ code: 1002, msg: "密码错误" });
-        }
+        req.session.username = username; //存储session
+        res.send({ code: 0, msg: "success" });
+        // if (authRes.statusCode === 200) {
+        //   req.session.username = username; //存储session
+        //   res.send({ code: 0, msg: "success" });
+        // } else {
+        //   res.send({ code: 1002, msg: "密码错误" });
+        // }
       })
       .catch((err) => {
         console.log("Login Error", err);

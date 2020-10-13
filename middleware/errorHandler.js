@@ -1,6 +1,7 @@
 module.exports = (err, req, res, next) => {
   const statusErrorMap = {
     400: "InvalidParams",
+    401: "Unauthorized",
     500: "ServerError",
   };
   let status = err.status;
