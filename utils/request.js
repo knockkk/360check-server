@@ -36,10 +36,3 @@ module.exports = {
     });
   },
 };
-// requestyxAuth("ZhiXiaoYu", "0225094693py.")
-//   .then((res) => {
-//     console.log("res", res);
-//   })
-//   .catch((err) => {
-//     console.log("err", err);
-//   });

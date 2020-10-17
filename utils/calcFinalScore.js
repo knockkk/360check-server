@@ -1,272 +1,194 @@
 const ScoreModel = require("../models/score");
-const UserModel = require("../models/user");
-const PartModel = require("../models/part");
 const ImpressionModel = require("../models/impression");
-const { use } = require("../routes/score");
+const UserModel = require("../models/user");
+const CommitteeModel = require("../models/committee");
+const GroupModel = require("../models/group");
 module.exports = calcFinalScore = async () => {
   const tutorList = await UserModel.getTutorList();
-  const captain = await UserModel.getCaptain();
-  const leaders = await PartModel.getLeaders();
-  const groupLeaderNames = [];
-  const committeeLeaderNames = [];
+  const captain = await CommitteeModel.getCaptain().username;
+  const committeeLeader = await CommitteeModel.getLeaders();
+  const groupLeader = await GroupModel.getLeaders();
+
   const result = [];
   const allUsers = await UserModel.find();
-  for (let i = 0; i < allUsers.length; i++) {
-    let user = allUsers[i];
+  for (let user of allUsers) {
     const thisUsername = user.username;
-    const finalScore = {
-      username: user.username,
-      realname: user.realname,
-      isCaptain: false,
-      isGroupLeader: false,
-      isCommitteeLeader: false,
-      groupNames: user.group,
-      group: {
-        a: 0,
-        b: 0,
-        c: 0,
-      },
-      committee: {
-        a: 0,
-        b: 0,
-        c: 0,
-      },
-    };
-    //一、计算项目组评分分数
+    let g_final_score = 0;
+    let c_final_score = 0;
+    if (tutorList.includes(thisUsername)) {
+      continue;
+    }
     //1. 队长
-    if (thisUsername === captain) {
+    else if (thisUsername === captain) {
       let sum_a = 0,
         count_a = 0,
         sum_b = 0,
-        count_b = 0;
+        count_b = 0,
+        sum_c = 0,
+        count_c = 0;
       const impressions = await ImpressionModel.find({ to: thisUsername });
       impressions.forEach((imp) => {
         const { from, score } = imp;
         if (tutorList.includes(from)) {
           //导师impression
-          sum_a += score * 0.8;
+          sum_a += score;
           count_a += 1;
         } else {
-          //普通队员impression
-          sum_b += score * 0.8;
+          //队员impression
+          sum_b += score;
           count_b += 1;
-        }
-      });
-      //平均分
-      finalScore.isCaptain = true;
-      finalScore.group.a = count_a ? (sum_a / count_a).toFixed(2) : 0;
-      finalScore.group.b = count_b ? (sum_b / count_b).toFixed(2) : 0;
-    }
-    //2. 项目组组长
-    else if (groupLeaderNames.includes(thisUsername)) {
-      const scores = await ScoreModel.find({ to: thisUsername, part: "group" });
-      const impressions = await ImpressionModel.find({ to: thisUsername });
-      let sum_a = 0,
-        count_a = 0,
-        sum_b = 0,
-        count_b = 0,
-        sum_c = 0,
-        count_c = 0;
-      scores.forEach((record) => {
-        //项目组组员score
-        sum_a += getArrSum(record.scores);
-        count_a += 1;
-      });
-      impressions.forEach((imp) => {
-        const { from, score } = imp;
-        if (from === captain) {
-          //队长impression
-          sum_b += score * 0.8;
-          count_b += 1;
-        } else {
-          //导师impression
-          sum_c += score * 0.8;
-          count_c += 1;
-        }
-      });
-      finalScore.isGroupLeader = true;
-      finalScore.group.a = count_a ? (sum_a / count_a).toFixed(2) : 0;
-      finalScore.group.b = count_b ? (sum_b / count_b).toFixed(2) : 0;
-      finalScore.group.c = count_c ? (sum_c / count_c).toFixed(2) : 0;
-    }
-    //3. 普通项目组组员
-    else {
-      const scores = await ScoreModel.find({ to: thisUsername, part: "group" });
-      const impressions = await ImpressionModel.find({ to: thisUsername });
-      let sum_a = 0,
-        count_a = 0,
-        sum_b = 0,
-        count_b = 0,
-        sum_c = 0,
-        count_c = 0;
-      scores.forEach((record) => {
-        const { from, scores } = record;
-        if (groupLeaderNames.includes(from)) {
-          //项目组组长score
-          sum_b += getArrSum(scores);
-          count_b += 1;
-        } else {
-          //其他项目组组员score
-          sum_a += getArrSum(scores);
-          count_a += 1;
-        }
-      });
-      impressions.forEach((imp) => {
-        const { from, score } = imp;
-        if (from === captain) {
-          //队长impression
-          sum_c += score * 0.8;
-          count_c += 1;
-        }
-      });
-      finalScore.group.a = count_a ? (sum_a / count_a).toFixed(2) : 0;
-      finalScore.group.b = count_b ? (sum_b / count_b).toFixed(2) : 0;
-      finalScore.group.c = count_c ? (sum_c / count_c).toFixed(2) : 0;
-    }
 
-    //二、计算队委会评分分数
-    //1. 队长
-    if (thisUsername === captain) {
-      let sum_a = 0,
-        count_a = 0,
-        sum_b = 0,
-        count_b = 0;
-      impressions.forEach((imp) => {
-        const { from, score } = imp;
-        if (tutorList.includes(from)) {
-          //导师impression
-          sum_a += score * 0.2;
-          count_a += 1;
-        } else if (committeeLeaderNames.includes(from)) {
-          //队委会组长impression
-          sum_b += score * 0.2;
-          count_b += 1;
+          //队委会组长 impression
+          if (committeeLeader.includes(from)) {
+            sum_c += score;
+            count_c += 1;
+          }
         }
       });
-      //平均分
-      finalScore.isCaptain = true;
-      finalScore.committee.a = count_a ? (sum_a / count_a).toFixed(2) : 0;
-      finalScore.committee.b = count_b ? (sum_b / count_b).toFixed(2) : 0;
-    }
-    //2. 队委会组长
-    else if (committeeLeaderNames.includes(thisUsername)) {
-      const scores = await ScoreModel.find({
-        to: thisUsername,
-        part: "committee",
-      });
+      //项目组
+      const g_a = count_a ? 0.8 * (sum_a / count_a) : 0;
+      const g_b = count_b ? 0.8 * (sum_b / count_b) : 0;
+      g_final_score = calAverageScore(g_b, 0.7, g_a, 0.3, 0, 0);
+      //队委会
+      const c_a = count_a ? 0.2 * (sum_a / count_a) : 0;
+      const c_b = count_c ? 0.2 * (sum_c / count_c) : 0;
+      c_final_score = calAverageScore(c_b, 0.7, c_a, 0.3, 0, 0);
+    } else {
       const impressions = await ImpressionModel.find({ to: thisUsername });
-      let sum_a = 0,
-        count_a = 0,
-        sum_b = 0,
-        count_b = 0,
-        sum_c = 0,
-        count_c = 0;
-      scores.forEach((record) => {
-        //队委会组员score
-        sum_a += getArrSum(record.scores);
-        count_a += 1;
-      });
+      let imp_tutor_sum = 0,
+        imp_tutor_count = 0,
+        imp_captain_sum = 0,
+        imp_captain_count = 0;
       impressions.forEach((imp) => {
         const { from, score } = imp;
         if (from === captain) {
           //队长impression
-          sum_b += score * 0.2;
-          count_b += 1;
+          imp_captain_sum += score;
+          imp_captain_count += 1;
         } else {
           //导师impression
-          sum_c += score * 0.2;
-          count_c += 1;
+          imp_tutor_sum += score;
+          imp_tutor_count += 1;
         }
       });
-      finalScore.isGroupLeader = true;
-      finalScore.committee.a = count_a ? (sum_a / count_a).toFixed(2) : 0;
-      finalScore.committee.b = count_b ? (sum_b / count_b).toFixed(2) : 0;
-      finalScore.committee.c = count_c ? (sum_c / count_c).toFixed(2) : 0;
-    }
-    //3. 普通队委会组员
-    else {
-      const scores = await ScoreModel.find({
-        to: thisUsername,
-        part: "committee",
-      });
-      const impressions = await ImpressionModel.find({ to: thisUsername });
-      let sum_a = 0,
-        count_a = 0,
-        sum_b = 0,
-        count_b = 0,
-        sum_c = 0,
-        count_c = 0;
-      scores.forEach((record) => {
-        const { from, scores } = record;
-        if (committeeLeaderNames.includes(from)) {
-          //队委会组长score
-          sum_b += getArrSum(scores);
-          count_b += 1;
-        } else {
-          //其他队委会组员score
-          sum_a += getArrSum(scores);
-          count_a += 1;
-        }
-      });
-      impressions.forEach((imp) => {
-        const { from, score } = imp;
-        if (from === captain) {
-          //队长impression
-          sum_c += score * 0.2;
-          count_c += 1;
-        }
-      });
-      finalScore.committee.a = count_a ? (sum_a / count_a).toFixed(2) : 0;
-      finalScore.committee.b = count_b ? (sum_b / count_b).toFixed(2) : 0;
-      finalScore.committee.c = count_c ? (sum_c / count_c).toFixed(2) : 0;
-    }
-    result.push(finalScore);
-  }
+      const imp_tutor = imp_tutor_count ? imp_tutor_sum / imp_tutor_count : 0;
+      const imp_captain = imp_captain_count
+        ? imp_captain_sum / imp_captain_count
+        : 0;
 
-  const finalScoreList = result.map((record) => {
-    const {
-      realname,
-      isCaptain,
-      isGroupLeader,
-      isCommitteeLeader,
-      group,
-      committee,
-      groupNames,
-    } = record;
-    let groupScore, committeeScore;
-    if (isCaptain) {
-      groupScore = (group.a * 0.3 + group.b * 0.7).toFixed(2);
-    } else if (isGroupLeader) {
-      if (group.c) {
-        //存在导师评价
-        groupScore = parseFloat(
-          (group.a * 0.3 + group.b * 0.3 + group.c * 0.4).toFixed(2)
-        );
-      } else {
-        groupScore = parseFloat((group.a * 0.7 + group.b * 0.3).toFixed(2));
+      //项目组
+      const thisUserGroups = await GroupModel.find({ username: thisUsername });
+      let g_score_sum = 0;
+      for (let { groupName, identity } of thisUserGroups) {
+        const scores = await ScoreModel.find({
+          to: thisUsername,
+          part: "group",
+          partName: groupName,
+        });
+
+        if (identity === "组长") {
+          let sum_a = 0,
+            count_a = 0;
+          scores.forEach((record) => {
+            //项目组组员score
+            sum_a += getArrSum(record.scores);
+            count_a += 1;
+          });
+          const g_a = count_a ? sum_a / count_a : 0;
+          const g_b = 0.8 * imp_captain;
+          const g_c = 0.8 * imp_tutor;
+          g_score_sum += calAverageScore(g_a, 0.3, g_b, 0.3, g_c, 0.4);
+        } else {
+          let sum_a = 0,
+            count_a = 0,
+            sum_b = 0,
+            count_b = 0;
+          scores.forEach((record) => {
+            const { from, scores } = record;
+            if (groupLeader[groupName] === from) {
+              //项目组组长score
+              sum_b += getArrSum(scores);
+              count_b += 1;
+            } else {
+              //项目组组员score
+              sum_a += getArrSum(scores);
+              count_a += 1;
+            }
+          });
+          const g_a = count_a ? sum_a / count_a : 0;
+          const g_b = count_b ? sum_b / count_b : 0;
+          const g_c = 0.8 * imp_captain;
+          g_score_sum += calAverageScore(g_a, 0.3, g_b, 0.4, g_c, 0.3);
+        }
       }
-    } else {
-      groupScore = parseFloat(
-        (group.a * 0.3 + group.b * 0.4 + group.c * 0.3).toFixed(2)
+      g_final_score = parseFloat(
+        (g_score_sum / thisUserGroups.length).toFixed(2)
+      );
+
+      //队委会
+      const thisUserCommittees = await CommitteeModel.find({
+        username: thisUsername,
+      });
+      let c_score_sum = 0;
+      for (let { groupName, identity } of thisUserCommittees) {
+        const scores = await ScoreModel.find({
+          to: thisUsername,
+          part: "committee",
+          partName: groupName,
+        });
+
+        if (identity === "组长") {
+          let sum_a = 0,
+            count_a = 0;
+          scores.forEach((record) => {
+            //队委会组员score
+            sum_a += getArrSum(record.scores);
+            count_a += 1;
+          });
+          const c_a = count_a ? sum_a / count_a : 0;
+          const c_b = 0.2 * imp_captain;
+          const c_c = 0.2 * imp_tutor;
+          c_score_sum += calAverageScore(c_a, 0.3, c_b, 0.3, c_c, 0.4);
+        } else {
+          let sum_a = 0,
+            count_a = 0,
+            sum_b = 0,
+            count_b = 0;
+          scores.forEach((record) => {
+            const { from, scores } = record;
+            if (committeeLeader[groupName] === from) {
+              //队委会组长score
+              sum_b += getArrSum(scores);
+              count_b += 1;
+            } else {
+              //队委会组员score
+              sum_a += getArrSum(scores);
+              count_a += 1;
+            }
+          });
+          const c_a = count_a ? sum_a / count_a : 0;
+          const c_b = count_b ? sum_b / count_b : 0;
+          const c_c = 0.2 * imp_captain;
+          c_score_sum += calAverageScore(c_a, 0.3, c_b, 0.4, c_c, 0.3);
+        }
+      }
+      c_final_score = parseFloat(
+        (c_score_sum / thisUserCommittees.length).toFixed(2)
       );
     }
 
-    if (isCaptain) {
-      committeeScore = parseFloat(
-        (committee.a * 0.3 + committee.b * 0.7).toFixed(2)
-      );
-    } else if (isCommitteeLeader) {
-      committeeScore = parseFloat(
-        (committee.a * 0.3 + committee.b * 0.3 + committee.c * 0.4).toFixed(2)
-      );
-    } else {
-      committeeScore = parseFloat(
-        (committee.a * 0.3 + committee.b * 0.4 + committee.c * 0.3).toFixed(2)
-      );
-    }
-    return { realname, groupScore, committeeScore, groups: groupNames };
-  });
-  return finalScoreList;
+    const groups = await GroupModel.distinct("groupName", {
+      username: thisUsername,
+    });
+    const thisUserFinalScore = {
+      realname: user.realname,
+      groups, //项目组
+      groupScore: g_final_score, //项目组最终得分
+      committeeScore: c_final_score, //队委会最终得分
+    };
+    result.push(thisUserFinalScore);
+  }
+  return result;
 };
 function getArrSum(arr) {
   let sum = 0;
@@ -274,4 +196,31 @@ function getArrSum(arr) {
     sum += arr[i];
   }
   return sum;
+}
+
+//计算平均分
+//防止缺失某部分分数时的分数异常
+function calAverageScore(
+  part1_score,
+  part1_ratio,
+  part2_score,
+  part2_ratio,
+  part3_score,
+  part3_ratio
+) {
+  if (part2_score == 0) {
+    part1_ratio += part2_ratio;
+    part2_ratio = 0;
+  }
+  if (part3_score == 0) {
+    part1_ratio += part3_ratio;
+    part3_ratio = 0;
+  }
+  return parseFloat(
+    (
+      part1_score * part1_ratio +
+      part2_score * part2_ratio +
+      part3_score * part3_ratio
+    ).toFixed(2)
+  );
 }

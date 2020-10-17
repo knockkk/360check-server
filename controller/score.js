@@ -2,8 +2,8 @@ const ScoreModel = require("../models/score");
 const UserModel = require("../models/user");
 const checkScore = require("../utils/checkScore");
 const calcFinalScore = require("../utils/calcFinalScore");
+const getPartInfo = require("../utils/getPartInfo");
 const { rules } = require("../config");
-const user = require("./user");
 module.exports = {
   async getSeedScore(req, res, next) {
     const result = {};
@@ -134,25 +134,22 @@ module.exports = {
       return;
     }
     //参数校验
-    const partInfo = await UserModel.getPartInfo();
+    const partInfo = await getPartInfo();
     if (partInfo.hasOwnProperty(part) && partInfo[part].includes(partName)) {
       if (checkScore(part, scores)) {
-        let record = await ScoreModel.findOne({ from, to, part, partName });
-        if (record) {
-          record.scores = scores;
-        } else {
-          record = new ScoreModel({ from, to, part, partName, scores });
+        try {
+          await ScoreModel.findOneAndUpdate(
+            { from, to, part, partName },
+            { scores },
+            { upsert: true }
+          );
+          res.send({ code: 0, msg: "success" });
+        } catch (error) {
+          next({
+            status: 500,
+            msg: "数据库错误",
+          });
         }
-        await record.save((err) => {
-          if (err) {
-            next({
-              status: 500,
-              msg: "数据库错误",
-            });
-          } else {
-            res.send({ code: 0, msg: "success" });
-          }
-        });
       } else {
         next({
           status: 400,

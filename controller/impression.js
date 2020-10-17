@@ -1,6 +1,10 @@
-const ImpressionModel = require("../models/impression");
 const UserModel = require("../models/user");
-const PartModel = require("../models/part");
+const CommitteeModel = require("../models/committee");
+const GroupModel = require("../models/group");
+const ClassModel = require("../models/seedClass");
+const ImpressionModel = require("../models/impression");
+const user = require("./user");
+const PartModel = "";
 module.exports = {
   //获取导师impression评价列表（只针对导师），返回各项目组和队委会干部信息
   async getImpressionForTutor(req, res, next) {
@@ -32,49 +36,41 @@ module.exports = {
   async getImpressionForCaptain(req, res, next) {
     const username = req.session.username;
     //鉴别队长身份...
-    const thisUser = await UserModel.find({ username });
-    if (thisUser.identity !== 2) {
+    const captain = await CommitteeModel.getCaptain();
+    if (username !== captain.username) {
       next({
         status: 401,
         msg: "无权限",
       });
       return;
     }
-    const impressions = await ImpressionModel.find({ from: username });
-    const impressionMap = {};
-    impressions.forEach((imp) => {
-      impressionMap[imp.to] = imp.score;
-    });
     //获取所有队员名单
-    const allUsers = await UserModel.find();
     const result = [];
-    allUsers.forEach((user) => {
-      if (user.identity > 2) {
-        let { username, realname, group, committee, seedClass } = user;
-        let score = impressionMap[username] || 0;
-        result.push({
-          username,
-          realname,
-          group,
-          committee,
-          seedClass,
-          score,
-        });
-      }
+    const allUsers = await UserModel.find({
+      identity: "在站",
+      username: { $ne: username },
     });
+    for (let thisUser of allUsers) {
+      const userInfo = await getUserInfo(thisUser);
+      const impressionDoc = await ImpressionModel.findOne({
+        from: username,
+        to: thisUser.username,
+      });
+      const impression = impressionDoc ? impressionDoc.score : 0;
+      result.push(Object.assign(userInfo, { impression }));
+    }
     res.send(result);
   },
-  //获取对队长的impression（针对所有队员）
+  //获取对队长的impression（针对所有队员及导师）
   async getImpressionToCaptain(req, res, next) {
-    const captain = await UserModel.getCaptain();
-    const from = req.session.username;
-    const to = captain.username;
-    let score = 0;
-    const record = await ImpressionModel.findOne({ from, to });
-    if (record) {
-      score = record.score;
-    }
-    res.send(Object.assign(captain, { score }));
+    const captain = await CommitteeModel.getCaptain();
+    const captainInfo = await getUserInfo({ username: captain.username });
+    const impressionDoc = await ImpressionModel.findOne({
+      from: req.session.username,
+      to: captain.username,
+    });
+    const impression = impressionDoc ? impressionDoc.score : 0;
+    res.send(Object.assign(captainInfo, { impression }));
   },
   async updateImpression(req, res, next) {
     const from = req.session.username;
@@ -87,7 +83,7 @@ module.exports = {
       });
       return;
     }
-    if (!score || score <= 0 || score > 100) {
+    if (!score || score < 0 || score > 100) {
       next({
         status: 400,
         msg: "score参数无效",
@@ -113,3 +109,46 @@ module.exports = {
     });
   },
 };
+
+async function getUserInfo(thisUser) {
+  const userInfo = {};
+  const { username } = thisUser;
+  if (!thisUser.realname) {
+    thisUser = await UserModel.findOne({ username });
+  }
+  userInfo.username = thisUser.username;
+  userInfo.realname = thisUser.realname;
+  userInfo.teamNo = thisUser.teamNo;
+
+  const groupDocs = await GroupModel.find({
+    username,
+  });
+  userInfo.groups = groupDocs.map((g) => {
+    return {
+      groupName: g.groupName,
+      identity: g.identity,
+    };
+  });
+
+  const captain = await CommitteeModel.getCaptain();
+  if (username !== captain.username) {
+    const committeeDocs = await CommitteeModel.find({
+      username,
+    });
+    userInfo.committees = committeeDocs.map((g) => {
+      return {
+        groupName: g.groupName,
+        identity: g.identity,
+      };
+    });
+  }
+
+  const classDoc = await ClassModel.findOne({ username });
+  if (classDoc) {
+    const seedClass = (userInfo.seedClass = {});
+    seedClass.className = classDoc.className;
+    seedClass.identity = classDoc.identity;
+  }
+
+  return userInfo;
+}
