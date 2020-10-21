@@ -3,74 +3,20 @@ const CommitteeModel = require("../models/committee");
 const GroupModel = require("../models/group");
 const ClassModel = require("../models/seedClass");
 const ImpressionModel = require("../models/impression");
-const user = require("./user");
-const PartModel = "";
 module.exports = {
-  //获取导师impression评价列表（只针对导师），返回各项目组和队委会干部信息
-  async getImpressionForTutor(req, res, next) {
-    const username = req.session.username;
-    //鉴别导师身份...
-    const thisUser = await UserModel.find({ username });
-    if (thisUser.identity !== 1) {
-      next({
-        status: 401,
-        msg: "无权限",
-      });
-      return;
-    }
-    const impressions = await ImpressionModel.find({ from: username });
-    const impressionMap = {}; //还是直接查数据库?
-    impressions.forEach((imp) => {
-      impressionMap[imp.to] = imp.score;
-    });
-    //获取所有队员名单
-    const leaders = await PartModel.getLeaders();
-    const result = leaders.map((leader) => {
-      return Object.assign(leader, {
-        score: impressionMap[leader.username] || 0,
-      });
-    });
-    res.send(result);
-  },
-  //获取队长的impression评价列表（只针对队长）
-  async getImpressionForCaptain(req, res, next) {
-    const username = req.session.username;
-    //鉴别队长身份...
+  async getImpressionList(req, res, next) {
+    const thisUsername = req.session.username;
+    const thisUser = await UserModel.findOne({ username: thisUsername });
     const captain = await CommitteeModel.getCaptain();
-    if (username !== captain.username) {
-      next({
-        status: 401,
-        msg: "无权限",
-      });
-      return;
-    }
-    //获取所有队员名单
-    const result = [];
-    const allUsers = await UserModel.find({
-      identity: "在站",
-      username: { $ne: username },
-    });
-    for (let thisUser of allUsers) {
-      const userInfo = await getUserInfo(thisUser);
-      const impressionDoc = await ImpressionModel.findOne({
-        from: username,
-        to: thisUser.username,
-      });
-      const impression = impressionDoc ? impressionDoc.score : 0;
-      result.push(Object.assign(userInfo, { impression }));
+    let result = [];
+    if (thisUser.identity === "导师") {
+      result = await getImpressionForTutor(thisUsername);
+    } else if (thisUsername === captain.username) {
+      result = await getImpressionForCaptain(thisUsername);
+    } else {
+      result = await getManagers(thisUsername);
     }
     res.send(result);
-  },
-  //获取对队长的impression（针对所有队员及导师）
-  async getImpressionToCaptain(req, res, next) {
-    const captain = await CommitteeModel.getCaptain();
-    const captainInfo = await getUserInfo({ username: captain.username });
-    const impressionDoc = await ImpressionModel.findOne({
-      from: req.session.username,
-      to: captain.username,
-    });
-    const impression = impressionDoc ? impressionDoc.score : 0;
-    res.send(Object.assign(captainInfo, { impression }));
   },
   async updateImpression(req, res, next) {
     const from = req.session.username;
@@ -109,11 +55,78 @@ module.exports = {
     });
   },
 };
+//获取导师impression评价列表（只针对导师），返回各项目组和队委会干部信息
+async function getImpressionForTutor(thisUsername) {
+  const committeeLeaders = await CommitteeModel.find({
+    identity: {
+      $in: ["队长", "部长", "组长"],
+    },
+  });
+  const groupLeaders = await GroupModel.find({
+    identity: "组长",
+  });
+  const nameSet = new Set();
+  committeeLeaders.forEach((u) => nameSet.add(u.username));
+  groupLeaders.forEach((u) => nameSet.add(u.username));
+  const managerNames = Array.from(nameSet);
+
+  const result = [];
+  for (let managerName of managerNames) {
+    const userInfo = await getUserInfo({ username: managerName });
+    const impressionDoc = await ImpressionModel.findOne({
+      from: thisUsername,
+      to: managerName,
+    });
+    const impression = impressionDoc ? impressionDoc.score : 0;
+    result.push({ ...userInfo, impression });
+  }
+  return result;
+}
+
+//获取队长的impression评价列表（只针对队长）
+async function getImpressionForCaptain(username) {
+  //获取所有队员名单
+  const result = [];
+  const allUsers = await UserModel.find({
+    identity: "在站",
+    username: { $ne: username },
+  });
+  for (let thisUser of allUsers) {
+    const userInfo = await getUserInfo(thisUser);
+    const impressionDoc = await ImpressionModel.findOne({
+      from: username,
+      to: thisUser.username,
+    });
+    const impression = impressionDoc ? impressionDoc.score : 0;
+    result.push(Object.assign(userInfo, { impression }));
+  }
+  return result;
+}
+
+//获取对队长及三大部长的impression（针对所有队员）
+async function getManagers(thisUsername) {
+  const managers = await CommitteeModel.find({
+    identity: {
+      $in: ["队长", "部长"],
+    },
+  });
+  const result = [];
+  for (let user of managers) {
+    const userInfo = await getUserInfo({ username: user.username });
+    const impressionDoc = await ImpressionModel.findOne({
+      from: thisUsername,
+      to: user.username,
+    });
+    const impression = impressionDoc ? impressionDoc.score : 0;
+    result.push({ ...userInfo, impression });
+  }
+  return result;
+}
 
 async function getUserInfo(thisUser) {
   const userInfo = {};
   const { username } = thisUser;
-  if (!thisUser.realname) {
+  if (!thisUser.teamNo) {
     thisUser = await UserModel.findOne({ username });
   }
   userInfo.username = thisUser.username;
@@ -129,19 +142,15 @@ async function getUserInfo(thisUser) {
       identity: g.identity,
     };
   });
-
-  const captain = await CommitteeModel.getCaptain();
-  if (username !== captain.username) {
-    const committeeDocs = await CommitteeModel.find({
-      username,
-    });
-    userInfo.committees = committeeDocs.map((g) => {
-      return {
-        groupName: g.groupName,
-        identity: g.identity,
-      };
-    });
-  }
+  const committeeDocs = await CommitteeModel.find({
+    username,
+  });
+  userInfo.committees = committeeDocs.map((g) => {
+    return {
+      groupName: g.groupName,
+      identity: g.identity,
+    };
+  });
 
   const classDoc = await ClassModel.findOne({ username });
   if (classDoc) {

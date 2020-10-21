@@ -1,5 +1,6 @@
 const ScoreModel = require("../models/score");
 const UserModel = require("../models/user");
+const ClassModel = require("../models/seedClass");
 const checkScore = require("../utils/checkScore");
 const calcFinalScore = require("../utils/calcFinalScore");
 const getPartInfo = require("../utils/getPartInfo");
@@ -7,32 +8,29 @@ const { rules } = require("../config");
 module.exports = {
   async getSeedScore(req, res, next) {
     const result = {};
-    const classNames = ["17级"];
-    for (let className of classNames) {
+    const classNameList = await ClassModel.getClassNameList();
+    for (let className of classNameList) {
       result[className] = [];
-      const users = await UserModel.find({ seedClass: className });
+      const users = await ClassModel.find({ className });
       for (let user of users) {
-        let thisUserScores = [];
         const records = await ScoreModel.find({
           part: "seedClass",
           partName: className,
           to: user.username,
         });
-        console.log("scores", records);
-
+        let thisUserScores = [];
         if (records.length > 0) {
-          let scoreSum = records.reduce((prev, curr) => {
-            let scores = curr.scores;
-            let sum = [];
-            for (let i = 0; i < scores.length; i++) {
-              sum[i] = prev[i] === undefined ? scores[i] : scores[i] + prev[i];
-            }
-            return sum;
-          }, []);
-          thisUserScores = scoreSum.map((sum) =>
-            parseFloat((sum / records.length).toFixed(2))
-          );
-          console.log("sum", thisUserScores);
+          thisUserScores = records
+            .reduce((prev, curr) => {
+              const { scores } = curr;
+              const sum = [];
+              for (let i = 0; i < scores.length; i++) {
+                sum[i] =
+                  prev[i] === undefined ? scores[i] : scores[i] + prev[i];
+              }
+              return sum;
+            }, [])
+            .map((sum) => parseFloat((sum / records.length).toFixed(2)));
         }
         result[className].push({
           realname: user.realname,
@@ -66,19 +64,33 @@ module.exports = {
   },
   //项目组分数详情
   async getGroupScore(req, res, next) {
-    const username = req.session.username;
-    const records = await ScoreModel.find({ part: "group" });
+    const thisUsername = req.session.username;
     const allUsers = await UserModel.find();
-    const nameMap = allUsers.reduce((prev, curr) => {
-      prev[curr.username] = curr.realname;
-      return prev;
-    }, {});
-
-    if (records.length === 0) {
-      res.send([]);
-      return;
+    const userAverageScore = [];
+    for (let i = 0; i < allUsers.length; i++) {
+      const { username, realname } = allUsers[i];
+      const records = await ScoreModel.find({
+        part: "group",
+        to: username,
+      });
+      const averageScore = records
+        .reduce((prev, record) => {
+          const curr = [];
+          const { scores } = record;
+          scores.forEach((score, index) => {
+            curr[index] =
+              prev[index] === undefined ? score : prev[index] + score;
+          });
+          return curr;
+        }, [])
+        .map((sum) => parseFloat((sum / records.length).toFixed(2)));
+      userAverageScore.push({
+        username,
+        realname,
+        averageScore,
+      });
     }
-    let results = rules["group"].map((item) => {
+    let results = rules.group.map((item) => {
       return {
         question: item.subtitle,
         high: {
@@ -86,27 +98,22 @@ module.exports = {
           names: [],
         },
         total: 0,
-        myScore: {
-          total: 0,
-          count: 0,
-        },
+        myScore: 0,
       };
     });
-    records.forEach((record) => {
-      let { to, scores } = record;
-      for (let i = 0; i < scores.length; i++) {
-        let { high, myScore } = results[i];
-        let score = scores[i];
-        if (scores[i] > high.score) {
+    userAverageScore.forEach((record) => {
+      const { username, realname, averageScore } = record;
+      for (let i = 0; i < averageScore.length; i++) {
+        const score = averageScore[i];
+        const { high } = results[i];
+        if (score > high.score) {
           high.score = score;
-          high.names = [nameMap[to]];
+          high.names = [realname];
         } else if (score === high.score) {
-          high.names.push(nameMap[to]);
+          high.names.push(realname);
         }
-
-        if (to === username) {
-          myScore.total += score;
-          myScore.count++;
+        if (username === thisUsername) {
+          results[i].myScore = score;
         }
         results[i].total += score;
       }
@@ -115,8 +122,8 @@ module.exports = {
       return {
         question: item.question,
         high: item.high,
-        average: (item.total / records.length).toFixed(2),
-        myScore: (item.myScore.total / item.myScore.count).toFixed(2),
+        average: parseFloat((item.total / userAverageScore.length).toFixed(2)),
+        myScore: item.myScore,
       };
     });
     res.send(results);

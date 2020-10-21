@@ -5,8 +5,8 @@ const router = express.Router();
 
 router.get("/rateList", Check, User.getRateList);
 router.get("/profile", Check, User.getProfile);
-router.post("/update", Check, User.updateProfile);
+router.post("/addGroupOrCommittee", Check, User.addGroupOrCommittee);
 router.get("/partInfo", Check, User.getPartInfo);
 router.post("/login", User.login);
-router.get("/logout", User.logout);
+router.get("/logout", Check, User.logout);
 module.exports = router;

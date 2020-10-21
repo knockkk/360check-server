@@ -3,12 +3,6 @@ const Impression = require("../controller/impression");
 const Check = require("../middleware/check");
 const router = express.Router();
 
-router.get("/getImpressionToCaptain", Check, Impression.getImpressionToCaptain);
-router.get(
-  "/getImpressionForCaptain",
-  Check,
-  Impression.getImpressionForCaptain
-);
-router.get("/getImpressionForTutor", Check, Impression.getImpressionForTutor);
-router.post("/updateImpression", Check, Impression.updateImpression);
+router.get("/getImpression", Check, Impression.getImpressionList);
+router.post("/update", Check, Impression.updateImpression);
 module.exports = router;
