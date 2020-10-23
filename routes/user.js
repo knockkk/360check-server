@@ -9,4 +9,5 @@ router.post("/addGroupOrCommittee", Check, User.addGroupOrCommittee);
 router.get("/partInfo", Check, User.getPartInfo);
 router.post("/login", User.login);
 router.get("/logout", Check, User.logout);
+router.post("/uploadCaptainImg", Check, User.uploadCaptainImg);
 module.exports = router;

@@ -6,6 +6,10 @@ const ScoreModel = require("../models/score");
 const { requestyxAuth } = require("../utils/request");
 const getParts = require("../utils/getPartInfo");
 const { deptToCommittees } = require("../config");
+const formidable = require("formidable");
+const path = require("path");
+const fs = require("fs");
+const { base } = require("../models/user");
 module.exports = {
   //登出
   async logout(req, res, next) {
@@ -61,6 +65,7 @@ module.exports = {
     const { group, committee } = req.body;
     const { realname } = await UserModel.findOne({ username });
     const partInfo = await getParts();
+    const tutorList = await UserModel.getTutorList();
 
     let errMessage = "";
     if (group) {
@@ -71,6 +76,8 @@ module.exports = {
         errMessage = "项目组已存在";
       } else if (!partInfo.group.includes(group)) {
         errMessage = "项目组不存在";
+      } else if (tutorList.includes(username)) {
+        errMessage = "导师无法更改";
       }
     }
     let thisDeptName = "";
@@ -78,11 +85,19 @@ module.exports = {
       const committeeDocs = await CommitteeModel.find({ username });
       if (committeeDocs.length >= 2) {
         errMessage = "队委会不能超过两个";
-      } else if (committeeDocs[0] && committeeDocs[0].groupName === committee) {
-        errMessage = "队委会信息已存在";
       } else if (!partInfo.committee.includes(committee)) {
         errMessage = "队委会不存在";
-      } else {
+      } else if (tutorList.includes(username)) {
+        errMessage = "导师无法更改";
+      } else if (committeeDocs[0]) {
+        const thisDoc = committeeDocs[0];
+        if (thisDoc.groupName === committee) {
+          errMessage = "队委会已存在";
+        } else if (thisDoc.identity === "队长" || thisDoc.identity === "部长") {
+          errMessage = "队长或部长无法更改";
+        }
+      }
+      if (!errMessage) {
         for (let deptName in deptToCommittees) {
           if (deptToCommittees[deptName].includes(committee)) {
             thisDeptName = deptName;
@@ -236,5 +251,45 @@ module.exports = {
       }
     }
     res.send(rateList);
+  },
+  //上传队长图片
+  async uploadCaptainImg(req, res, next) {
+    //web组长
+    const committeeDoc = await CommitteeModel.findOne({
+      username: req.session.username,
+    });
+    if (
+      committeeDoc &&
+      committeeDoc.groupName === "web组" &&
+      committeeDoc.identity === "组长"
+    ) {
+      const form = formidable({ multiples: true });
+      form.parse(req, (err, fields, files) => {
+        if (err) {
+          res.send({ code: 1, msg: "文件解析错误" });
+          return;
+        }
+        //判断文件类型
+        const imgFile = files.file;
+        const type = imgFile.type;
+        if (type.indexOf("image") < 0) {
+          res.send({ code: 1, msg: "只支持jpg/png文件格式" });
+          return;
+        }
+        const imgPath = path.resolve(__dirname, "..") + "/static/captain.jpg";
+        fs.rename(imgFile.path, imgPath, (err) => {
+          if (err) {
+            res.send({ code: 1, msg: "文件错误" });
+          } else {
+            res.send({ code: 0, msg: "success" });
+          }
+        });
+      });
+    } else {
+      next({
+        status: 401,
+        msg: "无权限",
+      });
+    }
   },
 };
