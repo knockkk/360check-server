@@ -9,7 +9,12 @@ const CommitteeSchema = new Schema({
 });
 //获取队长信息
 CommitteeSchema.statics.getCaptain = async function () {
-  const doc = await this.findOne({ identity: "队长" });
+  let doc = null;
+  try {
+    doc = await this.findOne({ identity: "队长" });
+  } catch (error) {
+    console.log(error);
+  }
   if (doc) {
     return {
       username: doc.username,
@@ -20,11 +25,15 @@ CommitteeSchema.statics.getCaptain = async function () {
 };
 //获取队委会小组组长信息
 CommitteeSchema.statics.getLeaders = async function () {
-  const leaders = await this.find({ identity: "组长" });
   const result = {};
-  leaders.forEach((l) => {
-    result[l.groupName] = l.username;
-  });
+  try {
+    const leaders = await this.find({ identity: "组长" });
+    leaders.forEach((l) => {
+      result[l.groupName] = l.username;
+    });
+  } catch (error) {
+    console.log(error);
+  }
   return result;
 };
 const CommitteeModel = mongoose.model("committee", CommitteeSchema);

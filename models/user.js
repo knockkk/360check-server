@@ -10,10 +10,14 @@ const UserSchema = new Schema({
 let tutorList = [];
 UserSchema.statics.getTutorList = async function () {
   if (tutorList.length > 0) return tutorList;
-  const tutors = await this.find({ identity: "导师" });
-  tutors.forEach((t) => {
-    tutorList.push(t.username);
-  });
+  try {
+    const tutors = await this.find({ identity: "导师" });
+    tutors.forEach((t) => {
+      tutorList.push(t.username);
+    });
+  } catch (error) {
+    console.log(error);
+  }
   return tutorList;
 };
 const UserModel = mongoose.model("user", UserSchema);

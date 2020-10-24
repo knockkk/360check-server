@@ -10,7 +10,11 @@ const ClassSchema = new Schema({
 let classNameList = [];
 ClassSchema.statics.getClassNameList = async function () {
   if (classNameList.length > 0) return classNameList;
-  classNameList = await this.distinct("className");
+  try {
+    classNameList = await this.distinct("className");
+  } catch (error) {
+    console.log(error);
+  }
   return classNameList;
 };
 const ClassModel = mongoose.model("seedClass", ClassSchema);
