@@ -1,5 +1,6 @@
 const CommitteeModel = require("../models/committee");
 const GroupModel = require("../models/group");
+const ClassModel = require("../models/seedClass");
 const { deptToCommittees } = require("../config");
 let partInfo = null;
 const getPartInfo = async () => {
@@ -9,7 +10,8 @@ const getPartInfo = async () => {
       groupName: { $nin: ["", ...Object.keys(deptToCommittees)] },
     });
     const group = await GroupModel.distinct("groupName");
-    partInfo = { committee, group };
+    const seedClass = await ClassModel.distinct("className");
+    partInfo = { committee, group, seedClass };
   } catch (error) {
     console.log(error);
   }
